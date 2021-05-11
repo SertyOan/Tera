@@ -1,0 +1,12 @@
+{
+    "name": "osyra/tera",
+    "type": "library",
+    "require": {
+        "php": ">=7.2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Osyra\\Tera\\": "src"
+        }
+    }
+}
