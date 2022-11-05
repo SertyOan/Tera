@@ -88,7 +88,7 @@ class Pattern {
             $satOffset = $this->extractHashValue(17, 1);
             $baseColor = Color::rgb2hsl(Color::hex2rgb($this->options['baseColor']));
 
-            $baseColor['h'] = ((($baseColor['h'] * 360 - $hueOffset) + 360) % 360) / 360;
+            $baseColor['h'] = (floor(($baseColor['h'] * 360 - $hueOffset) + 360) % 360) / 360;
 
             if($satOffset % 2 === 0) {
                 $baseColor['s'] = min(1, (($baseColor['s'] * 100) + $satOffset) / 100);
