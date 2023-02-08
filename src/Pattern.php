@@ -19,7 +19,11 @@ class Pattern {
             'Tessellation',
             'NestedSquares',
             'MosaicSquares',
-            'Chevrons'
+            'Chevrons',
+            'FishScales',
+            'WaveFishScales',
+            'Cubes',
+            'Test'
         ],
         DEFAULT_BASE_COLOR = '#933c3c',
         FILL_COLOR_DARK = '#222',
@@ -117,8 +121,8 @@ class Pattern {
             throw new \Exception('Invalid generator');
         }
 
-        $method = 'generate'.$generator;
-        $this->{$method}();
+        $class = '\\Osyra\\Tera\\Generators\\'.$generator;
+        $instance = new $class($this);
     }
 
     /**
@@ -129,103 +133,6 @@ class Pattern {
     private function extractHashValue($index, $length = 1) {
         $sub = substr($this->hash, $index, $length);
         return hexdec($sub);
-    }
-
-    private function generateHexagons() {
-        function buildShape($sideLength) {
-            $c = $sideLength;
-            $a = $c / 2;
-            $b = sin(60 * pi() / 180) * $c;
-            return implode(',', [
-                0, $b,
-                $a, 0,
-                $a + $c, 0,
-                2 * $c, $b,
-                $a + $c, 2 * $b,
-                $a, 2 * $b,
-                0, $b
-            ]);
-        }
-
-        $scale = $this->extractHashValue(0);
-        $sideLength = self::remap($scale, 0, 15, 8, 60);
-        $hexHeight = $sideLength * sqrt(3);
-        $hexWidth = $sideLength * 2;
-        $hex = buildShape($sideLength);
-
-        $this->svg->setWidth($hexWidth * 3 + $sideLength * 3);
-        $this->svg->setHeight($hexHeight * 6);
-
-        $i = 0;
-
-        for ($y = 0; $y < 6; $y++) {
-            for ($x = 0; $x < 6; $x++) {
-                $val = $this->extractHashValue($i);
-                $dy = $x % 2 === 0 ? $y * $hexHeight : $y * $hexHeight + $hexHeight / 2;
-                $opacity = $this->fillOpacity($val);
-                $fill = $this->fillColor($val);
-
-                $attributes = [
-                    'fill' => $fill,
-                    'fill-opacity' => $opacity,
-                    'stroke' => self::STROKE_COLOR,
-                    'stroke-opacity' => self::STROKE_OPACITY
-                ];
-
-                $node = SVGNode::polyline($hex);
-                $node->setAttributes($attributes);
-                $node->transform([
-                    'translate' => [
-                        $x * $sideLength * 1.5 - $hexWidth / 2,
-                        $dy - $hexHeight / 2
-                    ]
-                ]);
-                $this->svg->add($node);
-
-                // Add an extra one at top-right, for tiling.
-                if ($x === 0) {
-                    $node = SVGNode::polyline($hex);
-                    $node->setAttributes($attributes);
-                    $node->transform([
-                        'translate' => [
-                            6 * $sideLength * 1.5 - $hexWidth / 2,
-                            $dy - $hexHeight / 2
-                        ]
-                    ]);
-                    $this->svg->add($node);
-                }
-
-                // Add an extra row at the end that matches the first row, for tiling.
-                if ($y === 0) {
-                    $dy = $x % 2 === 0 ? 6 * $hexHeight : 6 * $hexHeight + $hexHeight / 2;
-
-                    $node = SVGNode::polyline($hex);
-                    $node->setAttributes($attributes);
-                    $node->transform([
-                        'translate' => [
-                            $x * $sideLength * 1.5 - $hexWidth / 2,
-                            $dy - $hexHeight / 2
-                        ]
-                    ]);
-                    $this->svg->add($node);
-                }
-
-                // Add an extra one at bottom-right, for tiling.
-                if ($x === 0 && $y === 0) {
-                    $node = SVGNode::polyline($hex);
-                    $node->setAttributes($attributes);
-                    $node->transform([
-                        'translate' => [
-                            6 * $sideLength * 1.5 - $hexWidth / 2,
-                            5 * $hexHeight + $hexHeight / 2
-                        ]
-                    ]);
-                    $this->svg->add($node);
-                }
-
-                $i++;
-            }
-        }
     }
 
     private function generateOverlappingCircles() {
@@ -1435,6 +1342,372 @@ class Pattern {
             'translate' => [$x + $triangleSize * 2, $y + $triangleSize],
             'scale' => [-1, 1]
         ]);
+        $this->svg->add($node);
+    }
+
+    private function generateFishScales() {
+        $scale = $this->extractHashValue(0);
+        $diameter = self::remap($scale, 0, 15, 25, 200);
+        $radius = $diameter / 2;
+
+        $path = 'M0 '.$radius
+            .' A '.$radius.' '.$radius.' 0 1 0 '.$diameter.' '.$radius
+            .' A '.$radius.' '.$radius.' 0 0 1 '.$radius.' 0'
+            .' A '.$radius.' '.$radius.' 0 0 1 0 '.$radius
+            .' Z';
+
+        $this->svg->setWidth($diameter * 6);
+        $this->svg->setHeight($radius * 6);
+
+        $i = 0;
+
+        for ($y = 0; $y < 6; $y++) {
+            for ($x = 0; $x < 6; $x++) {
+                $value = $this->extractHashValue($i);
+                $opacity = self::fillOpacity($value);
+                $fill = self::fillColor($value);
+                $dx = $y % 2 ? 0 : - $radius;
+                $attributes = [
+                    'stroke' => self::STROKE_COLOR,
+                    'stroke-opacity' => self::STROKE_OPACITY,
+                    'fill' => $fill,
+                    'fill-opacity' => $opacity
+                ];
+
+                $node = SVGNode::path($path);
+                $node->setAttributes($attributes);
+                $node->transform([
+                    'translate' => [$x * $diameter + $dx, $y * $radius - $radius]
+                ]);
+                $this->svg->add($node);
+
+                if ($x === 0) { // add an extra column on the right for tiling
+                    $node = SVGNode::path($path);
+                    $node->setAttributes($attributes);
+                    $node->transform([
+                        'translate' => [6 * $diameter + $dx, $y * $radius - $radius]
+                    ]);
+                    $this->svg->add($node);
+                }
+
+                if ($y === 0) { // add an extra row at the end that matches the first row, for tiling
+                    $node = SVGNode::path($path);
+                    $node->setAttributes($attributes);
+                    $node->transform([
+                        'translate' => [$x * $diameter + $dx, 6 * $radius - $radius]
+                    ]);
+                    $this->svg->add($node);
+                }
+
+                if ($x === 0 && $y === 0) { // add an extra one at bottom-right, for tiling
+                    $node = SVGNode::path($path);
+                    $node->setAttributes($attributes);
+                    $node->transform([
+                        'translate' => [6 * $diameter + $dx, 6 * $radius - $radius]
+                    ]);
+                    $this->svg->add($node);
+                }
+
+                $i++;
+            }
+        }
+    }
+
+    private function generateWaveFishScales() {
+        $scale = $this->extractHashValue(0);
+        $diameter = self::remap($scale, 0, 15, 25, 200);
+        $radius = $diameter / 2;
+
+        $this->svg->setWidth($diameter * 6);
+        $this->svg->setHeight($diameter * 6);
+
+        $i = 0;
+
+        for ($y = 0; $y < 6; $y++) {
+            for ($x = 0; $x < 3; $x++) {
+                $dx = $y % 2 ? 0 : - $diameter;
+
+                $group = $this->buildWaveFishScaleGroup($i, $diameter);
+                $group->transform([
+                    'translate' => [$x * $diameter * 2 + $dx - $radius, $y * $diameter - $diameter]
+                ]);
+                $this->svg->add($group);
+
+                if ($x === 0) { // add an extra column on the right for tiling
+                    $group = $this->buildWaveFishScaleGroup($i, $diameter);
+                    $group->transform([
+                        'translate' => [3 * $diameter * 2 + $dx - $radius, $y * $diameter - $diameter]
+                    ]);
+                    $this->svg->add($group);
+                }
+
+                if ($y === 0) { // add an extra row at the end that matches the first row, for tiling
+                    $group = $this->buildWaveFishScaleGroup($i, $diameter);
+                    $group->transform([
+                        'translate' => [$x * $diameter * 2 + $dx - $radius, 6 * $diameter - $diameter]
+                    ]);
+                    $this->svg->add($group);
+                }
+
+                if ($x === 0 && $y === 0) { // add an extra one at bottom-right, for tiling
+                    $group = $this->buildWaveFishScaleGroup($i, $diameter);
+                    $group->transform([
+                        'translate' => [3 * $diameter * 2 + $dx - $radius, 6 * $diameter - $diameter]
+                    ]);
+                    $this->svg->add($group);
+                }
+
+                $i++;
+            }
+        }
+    }
+
+    private function buildWaveFishScaleGroup($i, $diameter) {
+        $radius = $diameter / 2;
+
+        $path = 'M0 '.$radius
+            .' A '.$radius.' '.$radius.' 0 1 0 '.$diameter.' '.$radius
+            .' A '.$radius.' '.$radius.' 0 0 1 '.$radius.' 0'
+            .' A '.$radius.' '.$radius.' 0 0 1 0 '.$radius
+            .' Z';
+
+        $group = SVGNode::group();
+
+        // top scale
+        $value = $this->extractHashValue($i);
+        $opacity = self::fillOpacity($value);
+        $fill = self::fillColor($value);
+
+        $attributes = [
+            'stroke' => self::STROKE_COLOR,
+            'stroke-opacity' => self::STROKE_OPACITY,
+            'fill' => $fill,
+            'fill-opacity' => $opacity
+        ];
+
+        $node = SVGNode::path($path);
+        $node->setAttributes($attributes);
+        $group->add($node);
+
+        // right scale
+        $value = $this->extractHashValue($i + 1);
+        $opacity = self::fillOpacity($value);
+        $fill = self::fillColor($value);
+
+        $attributes = [
+            'stroke' => self::STROKE_COLOR,
+            'stroke-opacity' => self::STROKE_OPACITY,
+            'fill' => $fill,
+            'fill-opacity' => $opacity
+        ];
+
+        $node = SVGNode::path($path);
+        $node->setAttributes($attributes);
+        $node->transform([
+            'rotate' => [-90, $radius, $radius],
+            'translate' => [- $radius, $radius]
+        ]);
+        $group->add($node);
+
+        // left scale
+        $value = $this->extractHashValue($i + 2);
+        $opacity = self::fillOpacity($value);
+        $fill = self::fillColor($value);
+
+        $attributes = [
+            'stroke' => self::STROKE_COLOR,
+            'stroke-opacity' => self::STROKE_OPACITY,
+            'fill' => $fill,
+            'fill-opacity' => $opacity
+        ];
+
+        $node = SVGNode::path($path);
+        $node->setAttributes($attributes);
+        $node->transform([
+            'rotate' => [90, $radius, $radius],
+            'translate' => [$radius, $radius]
+        ]);
+        $group->add($node);
+
+        // bottom scale
+        $value = $this->extractHashValue($i + 3);
+        $opacity = self::fillOpacity($value);
+        $fill = self::fillColor($value);
+
+        $attributes = [
+            'stroke' => self::STROKE_COLOR,
+            'stroke-opacity' => self::STROKE_OPACITY,
+            'fill' => $fill,
+            'fill-opacity' => $opacity
+        ];
+
+        $node = SVGNode::path($path);
+        $node->setAttributes($attributes);
+        $node->transform([
+            'rotate' => [180, $radius, $radius],
+            'translate' => [0, - $diameter]
+        ]);
+        $group->add($node);
+        return $group;
+    }
+
+    private function generateCubes() {
+        $scale = $this->extractHashValue(0);
+        $size = self::remap($scale, 0, 15, 25, 200);
+
+        $this->svg->setWidth($size * 6);
+        $this->svg->setHeight($size * 6 * 0.75);
+
+        $i = 0;
+
+        for ($y = 0; $y < 6; $y++) {
+            for ($x = 0; $x < 6; $x++) {
+                $dx = $y % 2 ? 0 : $size / 2;
+
+                $group = $this->buildCube($i, $size);
+                $group->transform([
+                    'translate' => [$x * $size - $size / 2 + $dx, $y * 0.75 * $size - $size / 2]
+                ]);
+                $this->svg->add($group);
+
+                if ($x === 0) { // add an extra column on the right for tiling
+                    $group = $this->buildCube($i, $size);
+                    $group->transform([
+                        'translate' => [6 * $size - $size / 2 + $dx, $y * 0.75 * $size - $size / 2]
+                    ]);
+                    $this->svg->add($group);
+                }
+
+                if ($y === 0) { // add an extra row at the end that matches the first row, for tiling
+                    $group = $this->buildCube($i, $size);
+                    $group->transform([
+                        'translate' => [$x * $size - $size / 2 + $dx, 6 * 0.75 * $size - $size / 2]
+                    ]);
+                    $this->svg->add($group);
+                }
+
+                if ($x === 0 && $y === 0) { // add an extra one at bottom-right, for tiling
+                    $group = $this->buildCube($i, $size);
+                    $group->transform([
+                        'translate' => [6 * $size - $size / 2 + $dx, 6 * 0.75 * $size - $size / 2]
+                    ]);
+                    $this->svg->add($group);
+                }
+
+                $i++;
+            }
+        }
+    }
+
+    private function buildCube($i, $size) {
+        $group = SVGNode::group();
+
+        // left face
+        $shape = implode(',', [
+            0, 0.25 * $size,
+            0, 0.75 * $size,
+            0.5 * $size, $size, 
+            0.5 * $size, 0.5 * $size,
+            0, 0.25 * $size
+        ]);
+
+        $value = $this->extractHashValue($i);
+        $opacity = self::fillOpacity($value);
+        $fill = self::fillColor($value);
+
+        $attributes = [
+            'stroke' => self::STROKE_COLOR,
+            'stroke-opacity' => self::STROKE_OPACITY,
+            'fill' => $fill,
+            'fill-opacity' => $opacity
+        ];
+
+        $node = SVGNode::polyline($shape);
+        $node->setAttributes($attributes);
+        $group->add($node);
+
+        // right face
+        $shape = implode(',', [
+            0.5 * $size, 0.5 * $size,
+            0.5 * $size, $size,
+            $size, 0.75 * $size, 
+            $size, 0.25 * $size,
+            0.5 * $size, 0.5 * $size
+        ]);
+
+        $value = $this->extractHashValue($i + 1);
+        $opacity = self::fillOpacity($value);
+        $fill = self::fillColor($value);
+
+        $attributes = [
+            'stroke' => self::STROKE_COLOR,
+            'stroke-opacity' => self::STROKE_OPACITY,
+            'fill' => $fill,
+            'fill-opacity' => $opacity
+        ];
+
+        $node = SVGNode::polyline($shape);
+        $node->setAttributes($attributes);
+        $group->add($node);
+
+        // top face
+        $shape = implode(',', [
+            0.5 * $size, 0,
+            0, 0.25 * $size,
+            0.5 * $size, 0.5 * $size,
+            $size, 0.25 * $size, 
+            0.5 * $size, 0
+        ]);
+
+        $value = $this->extractHashValue($i + 2);
+        $opacity = self::fillOpacity($value);
+        $fill = self::fillColor($value);
+
+        $attributes = [
+            'stroke' => self::STROKE_COLOR,
+            'stroke-opacity' => self::STROKE_OPACITY,
+            'fill' => $fill,
+            'fill-opacity' => $opacity
+        ];
+
+        $node = SVGNode::polyline($shape);
+        $node->setAttributes($attributes);
+        $group->add($node);
+
+        return $group;
+    }
+
+    private function generateTest() {
+        $scale = $this->extractHashValue(0);
+        $size = self::remap($scale, 0, 15, 25, 200);
+
+        $this->svg->setWidth($size);
+        $this->svg->setHeight($size);
+
+        $line = '0,0 '.$size.','.$size;
+
+        $value = $this->extractHashValue(8);
+        $opacity = self::fillOpacity($value);
+        $fill = self::fillColor($value);
+
+        $attributes = [
+            'stroke' => self::STROKE_COLOR,
+            'stroke-opacity' => self::STROKE_OPACITY,
+            'stroke-width' => 40,
+            'fill' => $fill,
+            'fill-opacity' => $opacity
+        ];
+
+        $node = SVGNode::polyline($line);
+        $node->setAttributes($attributes);
+        /*
+        $node->transform([
+            'translate' => [
+                - $period / 4,
+                    - $waveWidth * 16 + $waveWidth * $i - $amplitude * 1.5
+                ]
+        ]);
+         */
         $this->svg->add($node);
     }
 }
